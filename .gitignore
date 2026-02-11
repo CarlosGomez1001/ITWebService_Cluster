@@ -1,0 +1,11 @@
+
+# Variables de entorno
+.env
+
+# Ignorar archivos de log
+*.log   
+
+# Ignorar servicios
+it_web_service-Front/
+it_web_service-Backend_R/
+microservices/

@@ -621,6 +621,139 @@ const MyComponent = ({ id }) => {
 };
 ```
 
+## General Thunks: `apiGenThunkGet` / `apiGenThunkPost` (Preferred Tool for Backend Queries)
+
+**File:** `src/store/slices/general/thunksBase.js`
+
+`apiThunkGet` / `apiThunkPost` (documented above) are bound to a single, module-scoped Axios instance (e.g. `crmAxios`, whose `baseURL` is already `${URL}/crm`). That means those helpers only work for the CRM module and the `endpoint` you pass must **not** repeat the module prefix.
+
+`apiGenThunkGet` and `apiGenThunkPost` solve that limitation by running on `genAxios` (`src/store/apis/axios/genAxios.js`), whose `baseURL` is the bare API root (`${URL}`, no module suffix). Because the base URL carries no module prefix, the `endpoint` you pass must include it explicitly (`crm/...`, `logistica/...`, `mtto/...`, `generales/...`, etc.). This makes them **module-agnostic** — a single thunks file can call any backend module without needing a dedicated Axios instance — which is why they should be the **default choice for new backend queries**, regardless of which module they belong to.
+
+### `apiGenThunkGet`
+
+```javascript
+const apiGenThunkGet = ({ endpoint, params, method = "GET", thunk, slicer = null }) => {
+    return async (dispatch) => {
+        try {
+            const response = await genAxios({ url: endpoint, method, params });
+            const { data } = response;
+
+            if (data.status !== 200)
+                throw new Error(`Error en API: ${thunk}`, { cause: { status: data.status, message: data.message } });
+
+            if (data.nuevoToken)
+                dispatch(actualizarToken({ tokenNuevo: data.nuevoToken }));
+
+            if (slicer) {
+                dispatch(slicer(data.data));
+                return ApiResponse.fullfilled();
+            }
+
+            return ApiResponse.fullfilled(data.data);
+        } catch (error) {
+            return ApiResponse.rejected({ error: error.message, status: error.status });
+        }
+    };
+};
+```
+
+Returns a standard Redux Thunk (`(dispatch) => Promise<ApiResponse>`) that performs a `GET` (or another method if overridden) request through `genAxios`.
+
+**Parameters:**
+| Param | Required | Description |
+|---|---|---|
+| `endpoint` | yes | Full path relative to the API root, **including the module prefix** (e.g. `"crm/listas/getItemsCotizacion"`). Sent as `genAxios`'s `url`. |
+| `params` | no | Object sent as the query string (Axios `params`). |
+| `method` | no | HTTP method, defaults to `"GET"`. |
+| `thunk` | yes | String identifier used only for logging/error messages (should match the exported thunk's name). |
+| `slicer` | no | A Redux slice action creator. If provided, the fetched `data.data` is dispatched into that reducer instead of being returned, and the thunk resolves with `ApiResponse.fullfilled()` (no payload) — useful when the result must live in global Redux state rather than local component state. |
+
+**Behavior:**
+- Throws (and is caught) if the backend's legacy response `status` is not `200`.
+- If the backend returns `nuevoToken` (JWT refreshed mid-request), dispatches `actualizarToken` to update the session automatically — callers don't need to handle token refresh themselves.
+- On success (no `slicer`): resolves `ApiResponse.fullfilled(data.data)`.
+- On success (with `slicer`): dispatches the data into the given reducer and resolves `ApiResponse.fullfilled()`.
+- On any failure: resolves `ApiResponse.rejected({ error, status })` — it never throws out of the thunk, so callers can always check `response.success`.
+
+### `apiGenThunkPost`
+
+```javascript
+const apiGenThunkPost = ({ endpoint, params, method = "POST", thunk }) => {
+    return async (dispatch) => {
+        try {
+            const response = await genAxios({ url: endpoint, method, data: params });
+            const { data } = response;
+
+            if (data.status !== 200)
+                throw new Error(`Error en API: ${thunk}`, { cause: { status: data.status, message: data.message } });
+
+            if (data.nuevoToken)
+                dispatch(actualizarToken({ tokenNuevo: data.nuevoToken }));
+
+            return ApiResponse.fullfilled(data.data);
+        } catch (error) {
+            return ApiResponse.rejected({ error: error.message, status: error.status });
+        }
+    };
+};
+```
+
+Same contract as `apiGenThunkGet`, except:
+- It performs a `POST` (or overridden `method`) via `genAxios`.
+- `params` is sent as the **request body** (`data: params`), not as a query string.
+- It has no `slicer` support — POST/mutation results are always returned via `ApiResponse.fullfilled(data.data)`, not dispatched into a slice.
+
+### How to Create New Thunks with `apiGenThunkGet` / `apiGenThunkPost`
+
+Real example from `src/store/slices/crmSlice/crmThunksModule/crmThunksCotizaciones.js`:
+
+```javascript
+import { apiGenThunkGet, apiGenThunkPost } from "../../general/thunksBase";
+
+// GET — note the endpoint includes the "crm/" module prefix
+export const getThunk_ItemsCotizacion = (data) =>
+    apiGenThunkGet({
+        endpoint: "crm/listas/getItemsCotizacion",
+        params: data,
+        thunk: 'getThunk_ItemsCotizacion'
+    });
+
+// POST — same rule: full path including the module prefix
+export const setThunk_CopiarCotizacion = (data) =>
+    apiGenThunkPost({
+        endpoint: "crm/set/copiarCotizacion",
+        params: data,
+        thunk: 'setThunk_CopiarCotizacion'
+    });
+```
+
+**Rule of thumb when defining a new thunk with these helpers:**
+1. Import `apiGenThunkGet` / `apiGenThunkPost` from `store/slices/general/thunksBase`.
+2. Export a function `(data) => apiGenThunkGet/apiGenThunkPost({ ... })` — never call the helper directly outside a thunk export, so it can be dispatched later.
+3. `endpoint` must be the **full backend path** (module prefix + route), since `genAxios` has no module-specific `baseURL`.
+4. `thunk` should match the exported function's name — it is only used for error messages/logging, but keeping it consistent makes debugging much easier.
+5. Only pass `slicer` on GET thunks that need to update global Redux state directly (list views, dropdown caches, etc.); omit it when the caller will handle the data locally.
+
+### Consuming These Thunks in Components
+
+- **Reads (GET)** → `useGetData` hook (`src/app/hooks/useGetData.js`): `fetchData.getData(getThunk_ItemsCotizacion, { IdCotizacion })`.
+- **Writes/mutations (POST)** → `useSetData` hook (`src/app/hooks/useSetData.js`): exposes `setPostData(thunkAction, params)`, `isPostLoading`, `catchErrorAtPost`.
+
+Real example from `src/app/crm/components/ViewProspecto/components/CotizacionesTable.jsx`:
+
+```javascript
+const postSendDataCot = useSetData();
+
+const handleCopiarCotizacion = async (cotizacionId) => {
+    const response = await postSendDataCot.setPostData(setThunk_CopiarCotizacion, { IdCotizacion: cotizacionId });
+    if (response.success) {
+        // response.data -> data.data returned by the backend
+    }
+};
+```
+
+`useSetData` dispatches the thunk, tracks `isPostLoading`/`catchErrorAtPost`, and returns `{ success, data }` — mirroring the `ApiResponse` contract produced by `apiGenThunkPost`.
+
 ## Development Guidelines
 
 ### Adding a New Endpoint

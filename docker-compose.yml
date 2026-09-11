@@ -194,6 +194,35 @@ services:
       retries: 3
       start_period: 40s
   # =============================================================================
+  # MICROSERVICE - AI SERVICE (Node.js + TypeScript + OpenAI)
+  # =============================================================================
+  ai-service:
+    profiles: [ "ai-service", "microservices" ]
+    build:
+      context: ./microservices/ai-service
+      dockerfile: Dockerfile
+    container_name: it-ms-ai-service
+    ports:
+      # Loopback-only, igual que el resto de microservicios: solo el backend
+      # PHP (dentro de la red Docker) o un curl local deben alcanzarlo. Este
+      # servicio nunca lleva CORS habilitado ni debe ser llamado desde React.
+      - "127.0.0.1:${MS_AI_PORT:-3005}:3005"
+    env_file:
+      - ./microservices/ai-service/.env
+    environment:
+      - PORT=3005
+      - NODE_ENV=${NODE_ENV:-development}
+    networks:
+      - it-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3005/ai/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # =============================================================================
   # FUTURE MICROSERVICES - Templates
   # =============================================================================
   # redis:

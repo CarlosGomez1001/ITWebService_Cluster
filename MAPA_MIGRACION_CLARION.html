@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de Migración Clarion</title>
+<meta name="description" content="Flujo de migración Clarion → React + PHP + SQL Server con agentes, skills y artefactos del cluster it_web_service.">
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --surface-2:#f0efeb; --text:#1d1d1b; --muted:#66645e; --border:#dcdad3;
+  --agent:#2f5fb3; --agent-bg:#e7eefb;
+  --skill:#2b7a4b; --skill-bg:#e3f3e9;
+  --artifact:#9a6300; --artifact-bg:#fbf0d9;
+  --gate:#7443b0; --gate-bg:#f0e8fa;
+  --source:#5e5e5e; --source-bg:#ececec;
+  --danger:#b3362f; --danger-bg:#fbe6e4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16171a; --surface:#1f2024; --surface-2:#26282d; --text:#ecebe7; --muted:#a4a29b; --border:#393b41;
+    --agent:#8fb2f0; --agent-bg:#1f2b42;
+    --skill:#7fcf9e; --skill-bg:#1b3326;
+    --artifact:#e7b861; --artifact-bg:#3a2e17;
+    --gate:#c3a2ee; --gate-bg:#2f2440;
+    --source:#bdbdbd; --source-bg:#2c2c2c;
+    --danger:#f08f88; --danger-bg:#3d201e;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16171a; --surface:#1f2024; --surface-2:#26282d; --text:#ecebe7; --muted:#a4a29b; --border:#393b41;
+  --agent:#8fb2f0; --agent-bg:#1f2b42;
+  --skill:#7fcf9e; --skill-bg:#1b3326;
+  --artifact:#e7b861; --artifact-bg:#3a2e17;
+  --gate:#c3a2ee; --gate-bg:#2f2440;
+  --source:#bdbdbd; --source-bg:#2c2c2c;
+  --danger:#f08f88; --danger-bg:#3d201e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:28px;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:20px;margin:44px 0 14px}
+h3{font-size:16px;margin:0 0 6px}
+p{margin:0 0 10px}
+.lead{color:var(--muted);max-width:760px}
+code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.chip.agent{color:var(--agent);background:var(--agent-bg)}
+.chip.skill{color:var(--skill);background:var(--skill-bg)}
+.chip.artifact{color:var(--artifact);background:var(--artifact-bg)}
+.chip.gate{color:var(--gate);background:var(--gate-bg)}
+.chip.source{color:var(--source);background:var(--source-bg)}
+.chip.danger{color:var(--danger);background:var(--danger-bg)}
+.overview{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:22px;overflow-x:auto}
+.overview svg{display:block;min-width:900px;width:100%;height:auto}
+.overview text{font-family:inherit}
+.stage{display:grid;grid-template-columns:56px 1fr;gap:14px}
+.rail{display:flex;flex-direction:column;align-items:center}
+.num{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:var(--surface);flex:none}
+.line{flex:1;width:2px;background:var(--border);margin:4px 0}
+.stage:last-child .line{display:none}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:18px}
+.card .top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.card .top h3{margin:0 6px 0 0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.box{background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.box > b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+.box ul{margin:0;padding-left:18px}
+.note{border-left:3px solid var(--danger);background:var(--danger-bg);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13.5px;margin-top:10px}
+.lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
+.lane{border:1px dashed var(--border);border-radius:10px;padding:10px 12px}
+.lane .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.small{font-size:13px;color:var(--muted);margin:0}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+tr:last-child td{border-bottom:none}
+.tablewrap{overflow-x:auto;border-radius:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.status li{margin-bottom:4px}
+.ok{color:var(--skill);font-weight:700}
+.pend{color:var(--artifact);font-weight:700}
+.c-ok{color:var(--skill);font-weight:600}
+.c-inf{color:var(--artifact);font-weight:600}
+.c-unr{color:var(--danger);font-weight:600}
+footer{margin-top:40px;color:var(--muted);font-size:12.5px}
+@media (max-width:560px){ .stage{grid-template-columns:40px 1fr;gap:10px} .num{width:32px;height:32px;font-size:14px} h1{font-size:23px} }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mapa de migración Clarion → React + PHP</h1>
+  <p class="lead">Cómo un módulo legacy de Clarion (ITRentas) pasa por el análisis, el contrato <code>MODULE-SPEC v2</code>, la revisión humana, la implementación y la revisión de conformidad, y qué agente o skill de Claude Code interviene en cada paso.</p>
+  <div class="legend">
+    <span class="chip agent">● Agente</span>
+    <span class="chip skill">● Skill</span>
+    <span class="chip artifact">● Artefacto / contrato</span>
+    <span class="chip gate">● Compuerta humana</span>
+    <span class="chip source">● Fuente legacy</span>
+    <span class="chip danger">● Retorno / bucle</span>
+  </div>
+
+  <!-- ============ VISTA GENERAL ============ -->
+  <div class="overview" role="img" aria-label="Diagrama del flujo: Clarion legacy, clarion-expert, MODULE-SPEC borrador, revisión humana, migration-orchestrator, migration-reviewer y módulo migrado, con bucles de retorno por SPEC GAP, rechazo y hallazgos.">
+    <svg viewBox="0 0 1160 290" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/>
+        </marker>
+        <marker id="flechaRoja" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--danger)"/>
+        </marker>
+      </defs>
+
+      <!-- bucle superior: SPEC GAP -->
+      <path d="M907 98 C907 28, 256 28, 256 96" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#flechaRoja)"/>
+      <path d="M744 98 C744 62, 640 50, 600 45" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <text x="581" y="22" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--danger)">SPEC GAP (orquestador o revisor) → regresa a análisis / revisión</text>
+
+      <!-- bucles inferiores -->
+      <path d="M581 188 C581 250, 256 250, 256 190" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#flechaRoja)"/>
+      <text x="418" y="274" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--danger)">rechazo / UNR sin decidir</text>
+      <path d="M907 188 C907 250, 745 250, 745 190" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#flechaRoja)"/>
+      <text x="826" y="274" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--danger)">hallazgos → hardening</text>
+
+      <!-- flechas principales -->
+      <g stroke="var(--muted)" stroke-width="1.8" marker-end="url(#flecha)">
+        <line x1="165" y1="143" x2="181" y2="143"/>
+        <line x1="328" y1="143" x2="344" y2="143"/>
+        <line x1="491" y1="143" x2="507" y2="143"/>
+        <line x1="654" y1="143" x2="670" y2="143"/>
+        <line x1="817" y1="143" x2="833" y2="143"/>
+        <line x1="980" y1="143" x2="996" y2="143"/>
+      </g>
+
+      <!-- nodos -->
+      <g font-size="12" text-anchor="middle">
+        <rect x="20" y="98" width="145" height="90" rx="10" fill="var(--source-bg)" stroke="var(--source)"/>
+        <text x="92.5" y="126" font-weight="700" font-size="13" fill="var(--source)">Clarion legacy</text>
+        <text x="92.5" y="146" fill="var(--text)">.txa .clw .inc</text>
+        <text x="92.5" y="163" fill="var(--text)">.dct .equ</text>
+
+        <rect x="183" y="98" width="145" height="90" rx="10" fill="var(--agent-bg)" stroke="var(--agent)"/>
+        <text x="255.5" y="122" font-weight="700" font-size="13" fill="var(--agent)">clarion-expert</text>
+        <text x="255.5" y="142" fill="var(--skill)">clarion-analysis</text>
+        <text x="255.5" y="158" fill="var(--skill)">business-rule-</text>
+        <text x="255.5" y="173" fill="var(--skill)">extraction</text>
+
+        <rect x="346" y="98" width="145" height="90" rx="10" fill="var(--artifact-bg)" stroke="var(--artifact)"/>
+        <text x="418.5" y="126" font-weight="700" font-size="13" fill="var(--artifact)">MODULE-SPEC v2</text>
+        <text x="418.5" y="146" fill="var(--text)">borrador</text>
+        <text x="418.5" y="163" fill="var(--muted)">review_required</text>
+
+        <rect x="509" y="98" width="145" height="90" rx="10" fill="var(--gate-bg)" stroke="var(--gate)"/>
+        <text x="581.5" y="126" font-weight="700" font-size="13" fill="var(--gate)">Revisión humana</text>
+        <text x="581.5" y="146" fill="var(--text)">decide UNR-*</text>
+        <text x="581.5" y="163" fill="var(--muted)">→ approved</text>
+
+        <rect x="672" y="98" width="145" height="90" rx="10" fill="var(--agent-bg)" stroke="var(--agent)"/>
+        <text x="744.5" y="122" font-weight="700" font-size="13" fill="var(--agent)">migration-</text>
+        <text x="744.5" y="138" font-weight="700" font-size="13" fill="var(--agent)">orchestrator</text>
+        <text x="744.5" y="158" fill="var(--text)">+ agentes/skills</text>
+        <text x="744.5" y="173" fill="var(--text)">Front y Backend</text>
+
+        <rect x="835" y="98" width="145" height="90" rx="10" fill="var(--agent-bg)" stroke="var(--agent)"/>
+        <text x="907.5" y="126" font-weight="700" font-size="13" fill="var(--agent)">migration-</text>
+        <text x="907.5" y="142" font-weight="700" font-size="13" fill="var(--agent)">reviewer</text>
+        <text x="907.5" y="163" fill="var(--muted)">solo lectura</text>
+
+        <rect x="998" y="98" width="145" height="90" rx="10" fill="var(--skill-bg)" stroke="var(--skill)"/>
+        <text x="1070.5" y="126" font-weight="700" font-size="13" fill="var(--skill)">Módulo migrado</text>
+        <text x="1070.5" y="146" fill="var(--text)">React + PHP</text>
+        <text x="1070.5" y="163" fill="var(--text)">+ SQL Server</text>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ============ ETAPAS ============ -->
+  <h2>Etapas en detalle</h2>
+  <div>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--skill)">0</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Preparar la petición (opcional)</h3><span class="chip skill">prompt-enhancer</span></div>
+        <p>Si la petición llega vaga ("migra facturación"), la skill <code>prompt-enhancer</code> del cluster la reescribe con el módulo, las capas, las skills aplicables, el orden front/back y los criterios de aceptación antes de tocar código.</p>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--source)">1</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Fuente legacy</h3><span class="chip source">Clarion ITRentas</span></div>
+        <div class="cols">
+          <div class="box"><b>Dónde vive</b>
+            <ul>
+              <li><code>migrations/ITRentas/*.txa</code>: 238 archivos, incluido <code>__GLOBAL__.txa</code></li>
+              <li><code>migrations/Modulos/&lt;modulo&gt;/txa/</code>: el subconjunto del módulo</li>
+            </ul>
+          </div>
+          <div class="box"><b>Ejemplo: pedidos-cliente</b>
+            <ul>
+              <li><code>BrowsePedidosClientes.txa</code></li>
+              <li><code>UpdatePedidosCliente.txa</code></li>
+              <li><code>UpdateConPed.txa</code></li>
+            </ul>
+          </div>
+        </div>
+        <div class="note">Si falta una dependencia (DCT, stored procedure, rutina global), se registra como evidencia faltante. Nunca se inventa.</div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--agent)">2</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Análisis legacy</h3><span class="chip agent">clarion-expert</span><span class="chip skill">clarion-analysis</span><span class="chip skill">business-rule-extraction</span></div>
+        <p>Objetivo: <b>Clarion → comportamiento observable → semántica de negocio → MODULE-SPEC v2</b>. No traduce sintaxis de Clarion a React/PHP. Herramientas: Read, Grep, Glob y Skill; no escribe código.</p>
+        <div class="cols">
+          <div class="box"><b>clarion-analysis</b>
+            <ul>
+              <li>Inventario: procedimientos, ventanas, tablas, SPs y dependencias</li>
+              <li>Separa la señal (embeds, eventos, SQL, validaciones, cambios de estado) del ruido generado (geometría, fuentes, plumbing)</li>
+              <li>Clasifica: UI, BUSINESS_RULE, VALIDATION, DATA_ACCESS, SQL, WORKFLOW, SIDE_EFFECT…</li>
+            </ul>
+          </div>
+          <div class="box"><b>business-rule-extraction</b>
+            <ul>
+              <li>Reglas atómicas <code>BR-*</code> (SI/CUANDO → ENTONCES)</li>
+              <li>Workflows <code>WF-*</code>, políticas <code>POL-*</code>, máquinas de estado <code>SM-*</code></li>
+              <li>Contratos de datos <code>DC-*</code>, efectos <code>SE-*</code>, pendientes <code>UNR-*</code> y trazabilidad</li>
+            </ul>
+          </div>
+          <div class="box"><b>Orden sugerido</b>
+            <ul>
+              <li>Inventario → ruido → dominio → matriz de conceptos → permisos → inventario/reservas → workflows → estados → contratos → efectos → UNR → trazabilidad</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--artifact)">3</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Contrato de migración</h3><span class="chip artifact">MODULE-SPEC.v2.json</span><span class="chip artifact">schema</span></div>
+        <p>Es el único artefacto de entrega entre el análisis y la implementación. Se valida contra <code>migrations/schemas/MODULE-SPEC.v2.schema.json</code>, y la guía está en <code>migrations/MODULE-SPEC.v2-GUIDE.md</code>.</p>
+        <div class="cols">
+          <div class="box"><b>Secciones</b>
+            <ul><li>module · legacy_sources · domain · capabilities · rules · workflows · policies · state_models · data_contracts · side_effects · architecture_mapping · traceability · unresolved · review</li></ul>
+          </div>
+          <div class="box"><b>Confianza de cada conclusión</b>
+            <ul>
+              <li><span class="c-ok">confirmed</span>: evidencia directa o decisión humana</li>
+              <li><span class="c-inf">inferred</span>: interpretación sólida, sin prueba directa</li>
+              <li><span class="c-unr">unresolved</span>: la intención no se puede establecer</li>
+            </ul>
+          </div>
+          <div class="box"><b>Artefactos de apoyo (piloto)</b>
+            <ul>
+              <li><code>framework/CONCEPT-TYPE-MATRIX.v1</code></li>
+              <li><code>framework/AUTHORIZATION-MATRIX.v1</code></li>
+              <li><code>framework/INVENTORY-RESERVATION-WORKFLOW.v1</code></li>
+              <li><code>framework/INVOICE-WORKFLOW.v1</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--gate)">4</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Revisión humana</h3><span class="chip gate">compuerta</span><span class="chip artifact">review.status</span></div>
+        <p>La persona responsable aprueba o rechaza los <code>UNR-*</code>, los bugs del legacy, los cambios de semántica y lo que intencionalmente no se migra. Las decisiones quedan en <code>review.decisions</code>, y <code>review.status</code> pasa de <code>review_required</code> a <code>approved</code>.</p>
+        <div class="note">Sin <code>approved</code>, el orquestador solo entrega un reporte de preparación y no implementa lógica crítica.</div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--agent)">5</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Implementación</h3><span class="chip agent">migration-orchestrator</span></div>
+        <p>Consume <b>solo</b> el spec aprobado y la arquitectura del proyecto. No relee Clarion para reinterpretar el negocio: si falta información, reporta un <b>SPEC GAP</b>. Herramientas: Read, Grep, Glob, Write, Edit, Bash, Skill y Agent.</p>
+        <div class="cols">
+          <div class="box"><b>Secuencia por capacidad</b>
+            <ul>
+              <li>Leer el spec → resolver IDs → mapear a la arquitectura → plan</li>
+              <li>Límites de transacción</li>
+              <li>Backend/dominio → persistencia → frontend</li>
+              <li>Tests → trazabilidad → validación</li>
+            </ul>
+          </div>
+          <div class="box"><b>Patrón para escrituras complejas</b>
+            <ul><li>Build Plan → Validate Plan → Apply in Transaction (p. ej. <code>InvoicePlan</code>, <code>DispatchPlan</code>, <code>ReservationPlan</code>)</li></ul>
+          </div>
+          <div class="box"><b>Autoridad del backend</b>
+            <ul><li>Permisos, validación, inventario, cálculos financieros, transiciones de estado, transacciones y efectos. El front solo los refleja para la UX.</li></ul>
+          </div>
+        </div>
+        <p class="small" style="margin-top:12px">El orquestador delega en los agentes y skills del proyecto que estén disponibles. Estos son los de cada repo hijo:</p>
+        <div class="lanes">
+          <div class="lane">
+            <b>Carril backend</b> <span class="small">(<code>it_web_service-Backend_R</code>)</span>
+            <div class="chips"><span class="chip agent">BackendAgent</span></div>
+            <div class="chips"><span class="chip skill">model-generator</span><span class="chip skill">crud-endpoint</span><span class="chip skill">endpoint-controller</span></div>
+            <p class="small">Modelo ActiveRecord → Servicio → Controlador → ruta en <code>index.php</code>. Piloto: <code>services/CrmService/PedidosCliente/</code>.</p>
+          </div>
+          <div class="lane">
+            <b>Carril frontend</b> <span class="small">(<code>it_web_service-Front</code>)</span>
+            <div class="chips"><span class="chip agent">FrontAgent</span></div>
+            <div class="chips"><span class="chip skill">http-request-thunk</span></div>
+            <p class="small">Thunks <code>apiGenThunkGet/Post</code> + hooks <code>useGetData</code>/<code>useSetData</code>, siguiendo los patrones de <code>docs/</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--agent)">6</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Revisión de conformidad</h3><span class="chip agent">migration-reviewer</span><span class="chip source">solo lectura</span></div>
+        <p>Compara <b>MODULE-SPEC ↔ implementación ↔ tests</b>. No modifica código de producción. Herramientas: Read, Grep, Glob y Bash.</p>
+        <div class="cols">
+          <div class="box"><b>Qué revisa</b>
+            <ul><li>Cobertura de BR/WF/POL/SM, transacciones, contratos de datos, efectos, autoridad front/back, UNR implementados como hechos, tests y trazabilidad</li></ul>
+          </div>
+          <div class="box"><b>Severidad</b>
+            <ul>
+              <li><b>CRITICAL</b>: dinero, inventario, seguridad o corrupción de datos</li>
+              <li><b>HIGH</b>: workflow o estado incorrecto</li>
+              <li><b>MEDIUM</b>: comportamiento secundario o test faltante</li>
+              <li><b>LOW</b>: trazabilidad o mantenibilidad</li>
+            </ul>
+          </div>
+          <div class="box"><b>Salidas</b>
+            <ul>
+              <li>Hallazgos → regresan al orquestador (hardening)</li>
+              <li><span class="c-unr">SPEC GAP</span> → regresa a la revisión humana o a clarion-expert</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="rail"><div class="num" style="background:var(--skill)">7</div><div class="line"></div></div>
+      <div class="card">
+        <div class="top"><h3>Cierre y comunicación (opcional)</h3><span class="chip skill">git-changelog</span><span class="chip skill">release-notes-html</span><span class="chip skill">release-notes-pdf</span></div>
+        <p>Con el módulo liberado, <code>git-changelog</code> resume los commits en <code>version/</code>, y <code>release-notes-html</code> (front) o <code>release-notes-pdf</code> (front/back) los convierte en novedades para usuarios finales.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ INVENTARIO ============ -->
+  <h2>Inventario de agentes y skills</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Nombre</th><th>Tipo</th><th>Ubicación</th><th>Etapa</th><th>Rol</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip agent">clarion-expert</span></td><td>Agente</td><td><code>.claude/agents/</code></td><td>2</td><td>Analiza Clarion y produce el borrador de MODULE-SPEC v2</td></tr>
+      <tr><td><span class="chip skill">clarion-analysis</span></td><td>Skill</td><td><code>.claude/skills/</code></td><td>2</td><td>Inventario, señal vs. ruido y clasificación del código legacy</td></tr>
+      <tr><td><span class="chip skill">business-rule-extraction</span></td><td>Skill</td><td><code>.claude/skills/</code></td><td>2</td><td>Convierte la evidencia en BR/WF/POL/SM/DC/SE/UNR + trazabilidad</td></tr>
+      <tr><td><span class="chip agent">migration-orchestrator</span></td><td>Agente</td><td><code>.claude/agents/</code></td><td>5</td><td>Implementa el spec aprobado y delega en los agentes/skills del proyecto</td></tr>
+      <tr><td><span class="chip agent">migration-reviewer</span></td><td>Agente</td><td><code>.claude/agents/</code></td><td>6</td><td>Revisión de conformidad, solo lectura</td></tr>
+      <tr><td><span class="chip skill">prompt-enhancer</span></td><td>Skill</td><td>cluster, Front y Backend</td><td>0</td><td>Enriquece peticiones vagas antes de trabajar</td></tr>
+      <tr><td><span class="chip agent">BackendAgent</span></td><td>Agente</td><td><code>Backend_R/.claude/agents/</code></td><td>5</td><td>Conoce la arquitectura PHP y elige las skills del backend</td></tr>
+      <tr><td><span class="chip skill">model-generator</span></td><td>Skill</td><td><code>Backend_R/.claude/skills/</code></td><td>5</td><td>Modelo ActiveRecord</td></tr>
+      <tr><td><span class="chip skill">crud-endpoint</span></td><td>Skill</td><td><code>Backend_R/.claude/skills/</code></td><td>5</td><td>Modelo + Servicio + Controlador + rutas</td></tr>
+      <tr><td><span class="chip skill">endpoint-controller</span></td><td>Skill</td><td><code>Backend_R/.claude/skills/</code></td><td>5</td><td>Controlador + ruta sobre un Servicio existente</td></tr>
+      <tr><td><span class="chip agent">FrontAgent</span></td><td>Agente</td><td><code>Front/.claude/agents/</code></td><td>5</td><td>Conoce la arquitectura React y elige las skills del front</td></tr>
+      <tr><td><span class="chip skill">http-request-thunk</span></td><td>Skill</td><td><code>Front/.claude/skills/</code></td><td>5</td><td>Thunks + hooks para consumir los endpoints nuevos</td></tr>
+      <tr><td><span class="chip skill">git-changelog</span></td><td>Skill</td><td>Front y Backend</td><td>7</td><td>Changelog entre dos commits en <code>version/</code></td></tr>
+      <tr><td><span class="chip skill">release-notes-html / -pdf</span></td><td>Skill</td><td>Front (html, pdf), Backend (pdf)</td><td>7</td><td>Novedades para usuarios finales</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- ============ REGLAS + PILOTO ============ -->
+  <h2>Reglas de frontera y estado del piloto</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Reglas que no se rompen</h3>
+      <ul class="status">
+        <li>El código destino se genera a partir del <b>spec aprobado + arquitectura + skills</b>, nunca del <code>.txa</code>.</li>
+        <li>El orquestador y el revisor <b>no</b> usan Clarion para reinterpretar el negocio; si falta algo, es un SPEC GAP.</li>
+        <li>Las anomalías del legacy se conservan, se explican y se marcan como <code>unresolved</code>; no se corrigen en silencio.</li>
+        <li>Los IDs (<code>BR-PED-017</code>, <code>WF-PED-INVOICE</code>…) no se renumeran nunca.</li>
+        <li>Un <code>UNR-*</code> implementado como hecho sin decisión humana es un hallazgo severo.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Piloto: Pedidos Cliente <span class="small" style="font-weight:400">(al 22‑sep‑2026)</span></h3>
+      <ul class="status">
+        <li><span class="ok">✓</span> Spec <code>migrations/Modulos/pedidos-cliente/MODULE-SPEC.v2.json</code> aprobado (11‑sep‑2026)</li>
+        <li><span class="ok">✓</span> E1 implementada en la rama <code>migrationv2</code> (front y backend)</li>
+        <li><span class="ok">✓</span> migration-reviewer: hallazgos C1–C2, H1–H6, M1–M6, L1–L3</li>
+        <li><span class="ok">✓</span> Hardening: C1, C2, H1–H4, H6, M4</li>
+        <li><span class="pend">○</span> Decidir <code>UNR-PED-AUTH-001</code> (bloquea la doble autorización)</li>
+        <li><span class="pend">○</span> H5 precios (el spec necesita una regla de precios primero), M1–M3, M5, M6, L1, L3</li>
+        <li><span class="pend">○</span> Volver a correr migration-reviewer → E2 (precios, factura, despacho)</li>
+        <li><span class="pend">○</span> Siguiente módulo: <code>migrations/Modulos/facturacion/</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>Fuentes: <code>README.md</code> del cluster, <code>.claude/agents/*</code>, <code>.claude/skills/*</code>, <code>migrations/MODULE-SPEC.v2-GUIDE.md</code> y las carpetas <code>.claude/</code> de cada repo hijo. Generado el 23‑sep‑2026.</footer>
+</main>
+</body>
+</html>

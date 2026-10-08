@@ -52,7 +52,8 @@ services:
       - frontend_node_modules:/app/node_modules
     environment:
       - NODE_ENV=development
-      - VITE_API_URL=http://backend:80
+      # La consume el navegador, no el contenedor: debe ser una URL alcanzable desde el host.
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-3000}/index.php
     command: npm run dev -- --host --force
     networks:
       - it-network
@@ -67,6 +68,9 @@ services:
     build:
       context: ./services/ITwebService_Front
       dockerfile: Dockerfile.prod
+      args:
+        # Se incrusta en el bundle en build time (Vite); cambiarla requiere --build.
+        VITE_API_URL: ${VITE_API_URL:?Define VITE_API_URL en .env}
     container_name: it-frontend-prod-lnx
     ports:
       # 80/443 are owned by the standalone reverse-proxy (../reverse-proxy).
@@ -100,8 +104,8 @@ services:
     environment:
       - PORT=3002
       - NODE_ENV=${NODE_ENV:-development}
-      - MONGO_URI=mongodb://mongo-notifications:27017/notifications
-      - API_KEY=${NOTIFICATIONS_API_KEY:-changeme-generate-a-secure-key}
+      - MONGO_URI=mongodb://${MONGO_NOTIFICATIONS_USER:?Define MONGO_NOTIFICATIONS_USER en .env}:${MONGO_NOTIFICATIONS_PASSWORD:?Define MONGO_NOTIFICATIONS_PASSWORD en .env}@mongo-notifications:27017/notifications?authSource=admin
+      - API_KEY=${NOTIFICATIONS_API_KEY:?Define NOTIFICATIONS_API_KEY en .env (openssl rand -hex 32)}
       - CORS_ORIGINS=${NOTIFICATIONS_CORS_ORIGINS:-http://localhost:5173,http://localhost:80}
     networks:
       - it-network
@@ -124,7 +128,13 @@ services:
     image: mongo:7-jammy
     container_name: it-mongo-notifications
     ports:
-      - "${MONGO_NOTIFICATIONS_PORT:-27017}:27017"
+      # Loopback-only: accesible desde el host (mongosh/Compass) pero no desde la red.
+      - "127.0.0.1:${MONGO_NOTIFICATIONS_PORT:-27017}:27017"
+    environment:
+      # Activa --auth. El usuario solo se crea si el volumen está vacío;
+      # con un volumen existente hay que crearlo a mano (ver DOCKER.md).
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_NOTIFICATIONS_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_NOTIFICATIONS_PASSWORD}
     volumes:
       - mongo_notifications_data:/data/db
     networks:

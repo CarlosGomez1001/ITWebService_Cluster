@@ -460,8 +460,26 @@ docker compose exec notifications sh
 # Verificar health check
 curl http://localhost:3002/notifications/health
 
-# Conectar a MongoDB (desde host)
-docker compose exec mongo-notifications mongosh notifications
+# Conectar a MongoDB (requiere auth; las variables salen del .env raíz)
+source .env && docker compose exec mongo-notifications mongosh \
+  "mongodb://$MONGO_NOTIFICATIONS_USER:$MONGO_NOTIFICATIONS_PASSWORD@localhost:27017/notifications?authSource=admin"
+```
+
+### Autenticación de MongoDB
+
+Mongo corre con `--auth` y solo publica el puerto en `127.0.0.1`. Las credenciales
+(`MONGO_NOTIFICATIONS_USER` / `MONGO_NOTIFICATIONS_PASSWORD`) viven en el `.env` raíz;
+usar un password URL-safe (`openssl rand -hex 24`) porque va dentro de `MONGO_URI`.
+
+- **Volumen nuevo (vacío):** la imagen crea el usuario automáticamente en el primer arranque.
+- **Volumen existente (con datos, creado antes de activar auth):** la imagen activa `--auth`
+  pero **no** crea el usuario. Créalo una vez *antes* de recrear el contenedor:
+
+```bash
+source .env
+docker exec -e PW="$MONGO_NOTIFICATIONS_PASSWORD" it-mongo-notifications mongosh --quiet admin \
+  --eval "db.createUser({user:'$MONGO_NOTIFICATIONS_USER', pwd:process.env.PW, roles:[{role:'root', db:'admin'}]})"
+docker compose --profile notifications up -d mongo-notifications notifications
 ```
 
 ### Documentación adicional

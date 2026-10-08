@@ -4,12 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-This is a full-stack enterprise application for managing **CRM**, **Logistics (Logistica)**, and **Maintenance (Mtto)** operations. The system consists of two independent projects that communicate via REST API.
+This is a full-stack enterprise application for managing **CRM**, **Logistics (Logistica)**, and **Maintenance (Mtto)** operations. The system consists of two independent projects that communicate via REST API, plus supporting microservices. This root folder is the platform repo (orchestration + shared docs); each component under `services/` is its own git repo and is git-ignored here.
 
 ```
-it_web_service-cluster/
-├── it_web_service-Front/      # React 18 + Vite frontend
-└── it_web_service-Backend_R/  # PHP 8.2 REST API backend
+IT-Platform/                         # Platform repo (this folder)
+├── docker-compose.yml               # Cluster orchestrator
+├── CLAUDE.md / API_CONTRACT.md / DOCKER.md
+├── migrations/                      # Clarion migration specs
+└── services/                        # git-ignored, one repo per component
+    ├── ITwebService_Front/          # React 18 + Vite frontend
+    ├── ITwebService_Back/           # PHP 8.2 REST API backend
+    └── microservices/
+        ├── AuthService/
+        ├── FormatsAndMails/
+        ├── ai-insights-service/
+        └── notifications_service/
 ```
 
 ## Quick Start
@@ -18,7 +27,7 @@ it_web_service-cluster/
 
 ```bash
 # Backend (Terminal 1)
-cd it_web_service-Backend_R
+cd services/ITwebService_Back
 composer install
 # Configure .env with database credentials
 php -S localhost:3000
@@ -26,7 +35,7 @@ php -S localhost:3000
 docker-compose up -d    # Runs on port 3000
 
 # Frontend (Terminal 2)
-cd it_web_service-Front
+cd services/ITwebService_Front
 npm install
 npm run dev             # Runs on port 5173 (Vite default)
 ```
@@ -35,11 +44,11 @@ npm run dev             # Runs on port 5173 (Vite default)
 
 ```bash
 # Frontend
-cd it_web_service-Front
+cd services/ITwebService_Front
 npm run build           # Creates dist/ folder
 
 # Backend
-cd it_web_service-Backend_R
+cd services/ITwebService_Back
 docker build -t it-backend .
 ```
 
@@ -809,8 +818,8 @@ To switch between environments:
 ## Project-Specific Documentation
 
 For detailed documentation on each project:
-- **Frontend**: See `it_web_service-Front/CLAUDE.md`
-- **Backend**: See `it_web_service-Backend_R/CLAUDE.md`
+- **Frontend**: See `services/ITwebService_Front/CLAUDE.md`
+- **Backend**: See `services/ITwebService_Back/CLAUDE.md`
 
 ## Common Issues
 

@@ -12,7 +12,7 @@ services:
   # =============================================================================
   backend:
     build:
-      context: ../it_web_service-Backend_R
+      context: ./services/ITwebService_Back
       dockerfile: Dockerfile
     container_name: it-backend-lnx
     ports:
@@ -20,11 +20,11 @@ services:
       # only intended consumer, reaching it via 127.0.0.1:${BACKEND_PORT}.
       - "127.0.0.1:${BACKEND_PORT:-3000}:80"
     env_file:
-      - ../it_web_service-Backend_R/.env
+      - ./services/ITwebService_Back/.env
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
     volumes:
-      - ../it_web_service-Backend_R:/var/www/html
+      - ./services/ITwebService_Back:/var/www/html
       - backend_vendor:/var/www/html/vendor
     networks:
       - it-network
@@ -42,13 +42,13 @@ services:
   frontend-dev:
     profiles: [ "dev" ]
     build:
-      context: ../it_web_service-Front
+      context: ./services/ITwebService_Front
       dockerfile: Dockerfile
     container_name: it-frontend-dev-lnx
     ports:
       - "${FRONTEND_DEV_PORT:-5173}:5173"
     volumes:
-      - ../it_web_service-Front:/app
+      - ./services/ITwebService_Front:/app
       - frontend_node_modules:/app/node_modules
     environment:
       - NODE_ENV=development
@@ -65,7 +65,7 @@ services:
   frontend-prod:
     profiles: [ "prod" ]
     build:
-      context: ../it_web_service-Front
+      context: ./services/ITwebService_Front
       dockerfile: Dockerfile.prod
     container_name: it-frontend-prod-lnx
     ports:
@@ -92,7 +92,7 @@ services:
   notifications:
     profiles: [ "notifications", "microservices" ]
     build:
-      context: ../microservices/notifications
+      context: ./services/microservices/notifications_service
       dockerfile: Dockerfile
     container_name: it-ms-notifications
     ports:
@@ -143,17 +143,17 @@ services:
   formatsandmail:
     profiles: [ "formatsandmail", "microservices" ]
     build:
-      context: ../microservices/FormatsAndMails
+      context: ./services/microservices/FormatsAndMails
       dockerfile: Dockerfile
     container_name: it-ms-formatsandmail
     ports:
       - "127.0.0.1:${MS_FORMATSANDMAIL_PORT:-3001}:80"
     env_file:
-      - ../microservices/FormatsAndMails/.env
+      - ./services/microservices/FormatsAndMails/.env
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
     volumes:
-      - ../microservices/FormatsAndMails:/var/www/html
+      - ./services/microservices/FormatsAndMails:/var/www/html
       - formatsandmail_vendor:/var/www/html/vendor
       - formatsandmail_cache:/var/www/formatos
     networks:
@@ -172,17 +172,17 @@ services:
   authservice:
     profiles: [ "authservice", "microservices" ]
     build:
-      context: ../microservices/AuthService
+      context: ./services/microservices/AuthService
       dockerfile: Dockerfile
     container_name: it-ms-authservice
     ports:
       - "127.0.0.1:${MS_AUTH_PORT:-3003}:80"
     env_file:
-      - ../microservices/AuthService/.env
+      - ./services/microservices/AuthService/.env
     environment:
       - APACHE_DOCUMENT_ROOT=/var/www/html
     volumes:
-      - ../microservices/AuthService:/var/www/html
+      - ./services/microservices/AuthService:/var/www/html
       - authservice_vendor:/var/www/html/vendor
     networks:
       - it-network
@@ -199,7 +199,7 @@ services:
   ai-service:
     profiles: [ "ai-service", "microservices" ]
     build:
-      context: ../microservices/ai-service
+      context: ./services/microservices/ai-insights-service
       dockerfile: Dockerfile
     container_name: it-ms-ai-service
     ports:
@@ -208,7 +208,7 @@ services:
       # servicio nunca lleva CORS habilitado ni debe ser llamado desde React.
       - "127.0.0.1:${MS_AI_PORT:-3005}:3005"
     env_file:
-      - ../microservices/ai-service/.env
+      - ./services/microservices/ai-insights-service/.env
     environment:
       - PORT=3005
       - NODE_ENV=${NODE_ENV:-development}

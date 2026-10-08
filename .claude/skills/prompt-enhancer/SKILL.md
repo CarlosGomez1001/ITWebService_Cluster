@@ -1,12 +1,12 @@
 ---
 name: prompt-enhancer
-description: Toma una petición informal, corta o ambigua del usuario y la reescribe en un prompt completo y accionable para trabajar en este cluster full-stack — agrega el contexto arquitectónico relevante de los tres CLAUDE.md (cluster, frontend y backend), detecta qué skill(s) existentes de ambos repos hijos (it_web_service-Front e it_web_service-Backend_R) encajan mejor con la petición, y deja explícitos módulo, capa/namespace afectados, convenciones de seguridad, orden de ejecución frontend/backend y criterios de aceptación, ANTES de escribir código. Usar cuando el usuario pida "mejora este prompt", "ayúdame a pedir esto bien", "no sé cómo explicar lo que quiero", "arma/redacta el prompt para...", o cuando una petición llegue tan vaga o corta que convenga clarificarla antes de tocar frontend o backend.
+description: Toma una petición informal, corta o ambigua del usuario y la reescribe en un prompt completo y accionable para trabajar en este cluster full-stack — agrega el contexto arquitectónico relevante de los tres CLAUDE.md (cluster, frontend y backend), detecta qué skill(s) existentes de ambos repos hijos (services/ITwebService_Front y services/ITwebService_Back) encajan mejor con la petición, y deja explícitos módulo, capa/namespace afectados, convenciones de seguridad, orden de ejecución frontend/backend y criterios de aceptación, ANTES de escribir código. Usar cuando el usuario pida "mejora este prompt", "ayúdame a pedir esto bien", "no sé cómo explicar lo que quiero", "arma/redacta el prompt para...", o cuando una petición llegue tan vaga o corta que convenga clarificarla antes de tocar frontend o backend.
 ---
 
 # Mejorador de prompts (arquitectura del cluster + skills disponibles en ambos repos)
 
-Esta skill vive en la raíz del cluster, un nivel arriba de sus dos repos
-hijos (`it_web_service-Front/` e `it_web_service-Backend_R/`), y por eso es
+Esta skill vive en la raíz del cluster, que contiene a sus dos repos hijos
+bajo `services/` (`services/ITwebService_Front/` y `services/ITwebService_Back/`), y por eso es
 la única con visión simétrica de ambos: no está sesgada hacia frontend ni
 hacia backend. **No implementa la petición del usuario** — la reescribe en
 un prompt completo y ejecutable, inyectando el contexto que el usuario
@@ -43,8 +43,8 @@ esta skill):
 | Archivo | Ruta desde la raíz del cluster |
 |---|---|
 | Cluster (arquitectura compartida, contrato de API) | `./CLAUDE.md` |
-| Frontend | `./it_web_service-Front/CLAUDE.md` |
-| Backend | `./it_web_service-Backend_R/CLAUDE.md` |
+| Frontend | `./services/ITwebService_Front/CLAUDE.md` |
+| Backend | `./services/ITwebService_Back/CLAUDE.md` |
 
 No cites los tres completos en el prompt final — usa esta tabla de palabras
 clave para decidir qué secciones son relevantes a la petición del usuario:
@@ -90,7 +90,7 @@ criterio que exige `crud-endpoint`, no lo decidas tú solo).
 
 Si la petición no deja claro el módulo (p. ej. solo da el nombre de una
 tabla), busca la tabla/entidad con
-`grep -ri "<nombre>" it_web_service-Backend_R/models/ it_web_service-Backend_R/services/`
+`grep -ri "<nombre>" services/ITwebService_Back/models/ services/ITwebService_Back/services/`
 antes de asumir, y si hay ambigüedad entre módulos pregúntalo.
 
 ### 4. Descubrir las skills disponibles en ambos repos (dinámico, no hardcodees)
@@ -100,12 +100,12 @@ el momento, desde la raíz del cluster:
 
 ```bash
 # Skills del frontend
-for f in it_web_service-Front/.claude/skills/*/SKILL.md; do
+for f in services/ITwebService_Front/.claude/skills/*/SKILL.md; do
   echo "== $f =="; sed -n '1,10p' "$f"
 done
 
 # Skills del backend
-for f in it_web_service-Backend_R/.claude/skills/*/SKILL.md; do
+for f in services/ITwebService_Back/.claude/skills/*/SKILL.md; do
   echo "== $f =="; sed -n '1,10p' "$f"
 done
 ```
@@ -171,7 +171,7 @@ Bloque de código markdown, en español, con esta estructura fija:
 <AuthValidator vs. legacy según el controlador destino; sanitización de $_GET; mass-assignment solo vía $columnasDB; convenciones de hooks/thunks del frontend si aplica>
 
 ## Archivos probablemente involucrados
-<rutas reales en ambos repos: it_web_service-Backend_R/models/..., it_web_service-Front/src/...>
+<rutas reales en ambos repos: services/ITwebService_Back/models/..., services/ITwebService_Front/src/...>
 
 ## Datos que faltan (si aplica)
 <tabla, columnas, primary key, endpoint exacto, GET o POST, si el servicio ya existe o no>
@@ -194,13 +194,14 @@ usuario confirme la opción 1.
 ## Notas
 
 - Esta skill vive en la raíz del cluster y por eso puede leer ambos repos
-  directamente como subcarpetas (`it_web_service-Front/`,
-  `it_web_service-Backend_R/`) — no uses rutas `../`, aquí no aplican.
+  directamente como subcarpetas (`services/ITwebService_Front/`,
+  `services/ITwebService_Back/`) — no uses rutas `../`, aquí no aplican.
 - Si alguno de los dos repos no existe en esa ruta relativa (p. ej. el
   cluster se clonó con otra estructura de carpetas), dilo y pregunta la
   ruta correcta en vez de omitir silenciosamente ese contexto.
 - Los repos hijos tienen su propia copia de esta skill (`prompt-enhancer`)
-  con rutas relativas a `../` porque se invocan desde dentro de cada repo.
+  con rutas relativas a `../../` (raíz del cluster) porque se invocan desde
+  dentro de cada repo (`services/<repo>/`).
   Esta versión es la que aplica cuando se trabaja desde la raíz del
   cluster; mantenerlas consistentes en contenido si una se actualiza.
 - No crees archivos, no corras `composer`/`npm` ni hagas commits como parte

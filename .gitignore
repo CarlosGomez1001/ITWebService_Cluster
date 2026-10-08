@@ -1,12 +1,11 @@
 
 # Variables de entorno
 .env
+.DS_Store
 
 # Ignorar archivos de log
 *.log   
 
 # Ignorar servicios
-microservices
-it_web_service-Front
-it_web_service-Backend_R
+services
 migrations

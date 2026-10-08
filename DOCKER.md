@@ -97,39 +97,48 @@ El proxy público (80/443) vive en `../reverse-proxy` — ver su `README.md`.
 ## Estructura de Archivos
 
 ```
-it_web_service-cluster/
+IT-Platform/                          # Repo plataforma (orquestador + docs compartidas)
 ├── docker-compose.yml              # Orquestador principal del cluster
 ├── .env                            # Variables de entorno (crear desde .env.example)
 ├── .env.example                    # Template de variables
+├── CLAUDE.md / API_CONTRACT.md     # Docs compartidas del cluster
+├── migrations/                     # Specs de migración Clarion
 ├── nginx/                           # LEGACY, sin usar: el reverse proxy activo
 │   ├── nginx.conf                  # ahora vive en ../reverse-proxy (fuera de este repo)
 │   └── ssl/
-├── it_web_service-Front/
-│   ├── Dockerfile                  # Imagen desarrollo
-│   ├── Dockerfile.prod             # Imagen producción (multi-stage)
-│   └── nginx.conf                  # Nginx config para frontend
-├── it_web_service-Backend_R/
-│   ├── Dockerfile                  # Imagen PHP + Apache
-│   └── .env                        # Variables del backend
-└── microservices/
-    ├── Notifications/
-    │   ├── Dockerfile              # Multi-stage Node.js 20 Alpine
-    │   ├── .env                    # Variables del microservicio
-    │   ├── .env.example            # Template de variables
-    │   ├── package.json            # Dependencias Node.js
-    │   ├── NOTIFICATIONS.md        # Documentación completa del API
-    │   ├── MONGO_MAINTENANCE.md    # Guía de mantenimiento MongoDB
-    │   └── src/
-    │       ├── server.js           # Entry point (Express + Socket.io)
-    │       ├── config/             # database.js, env.js, socket.js
-    │       ├── controllers/        # notificationController.js
-    │       ├── middleware/          # apiKeyAuth.js, errorHandler.js
-    │       ├── models/             # Notification.js (Mongoose)
-    │       ├── routes/             # notifications.js
-    │       └── services/           # socketService.js
-    └── FormatsAndMails/
-        ├── Dockerfile              # PHP 8.2 + Apache
-        └── .env                    # Variables del microservicio
+└── services/                       # Ignorado por git: cada componente es su propio repo
+    ├── ITwebService_Front/
+    │   ├── Dockerfile              # Imagen desarrollo
+    │   ├── Dockerfile.prod         # Imagen producción (multi-stage)
+    │   └── nginx.conf              # Nginx config para frontend
+    ├── ITwebService_Back/
+    │   ├── Dockerfile              # Imagen PHP + Apache
+    │   └── .env                    # Variables del backend
+    └── microservices/
+        ├── notifications_service/
+        │   ├── Dockerfile          # Multi-stage Node.js 20 Alpine
+        │   ├── .env                # Variables del microservicio
+        │   ├── .env.example        # Template de variables
+        │   ├── package.json        # Dependencias Node.js
+        │   ├── NOTIFICATIONS.md    # Documentación completa del API
+        │   ├── MONGO_MAINTENANCE.md # Guía de mantenimiento MongoDB
+        │   └── src/
+        │       ├── server.js       # Entry point (Express + Socket.io)
+        │       ├── config/         # database.js, env.js, socket.js
+        │       ├── controllers/    # notificationController.js
+        │       ├── middleware/     # apiKeyAuth.js, errorHandler.js
+        │       ├── models/         # Notification.js (Mongoose)
+        │       ├── routes/         # notifications.js
+        │       └── services/       # socketService.js
+        ├── FormatsAndMails/
+        │   ├── Dockerfile          # PHP 8.2 + Apache
+        │   └── .env                # Variables del microservicio
+        ├── AuthService/
+        │   ├── Dockerfile          # PHP 8.2 + Apache + ODBC
+        │   └── .env                # Variables del microservicio
+        └── ai-insights-service/
+            ├── Dockerfile          # Multi-stage Node.js 20 + TypeScript
+            └── .env                # Variables del microservicio
 ```
 
 ---
@@ -171,7 +180,7 @@ COMPOSE_PROJECT_NAME=it-web-service
 ### 3. Configurar backend
 
 ```bash
-cd it_web_service-Backend_R
+cd services/ITwebService_Back
 cp .env.example .env
 # Editar credenciales de SQL Server
 ```
@@ -179,7 +188,7 @@ cp .env.example .env
 ### 4. Configurar microservicio de notificaciones
 
 ```bash
-cd microservices/Notifications
+cd services/microservices/notifications_service
 cp .env.example .env
 # Editar API_KEY y CORS_ORIGINS según ambiente
 ```
@@ -457,8 +466,8 @@ docker compose exec mongo-notifications mongosh notifications
 
 ### Documentación adicional
 
-- Documentación completa del API: `microservices/Notifications/NOTIFICATIONS.md`
-- Mantenimiento de MongoDB: `microservices/Notifications/MONGO_MAINTENANCE.md`
+- Documentación completa del API: `services/microservices/notifications_service/NOTIFICATIONS.md`
+- Mantenimiento de MongoDB: `services/microservices/notifications_service/MONGO_MAINTENANCE.md`
 
 ---
 
@@ -672,10 +681,12 @@ cd /opt/it-web-service
 
 # Clonar repositorios
 git clone <url-repo-cluster> .
-git clone <url-repo-frontend> it_web_service-Front
-git clone <url-repo-backend> it_web_service-Backend_R
-git clone <url-repo-notifications> microservices/Notifications
-git clone <url-repo-formatsandmail> microservices/FormatsAndMails
+git clone <url-repo-frontend> services/ITwebService_Front
+git clone <url-repo-backend> services/ITwebService_Back
+git clone <url-repo-notifications> services/microservices/notifications_service
+git clone <url-repo-formatsandmail> services/microservices/FormatsAndMails
+git clone <url-repo-ai-service> services/microservices/ai-insights-service
+# AuthService todavía no tiene repo propio: copiarlo manualmente a services/microservices/AuthService
 ```
 
 #### O transferir desde máquina local
@@ -683,7 +694,7 @@ git clone <url-repo-formatsandmail> microservices/FormatsAndMails
 ```bash
 # Desde tu máquina local
 rsync -avz --exclude='node_modules' --exclude='vendor' --exclude='.git' \
-  /path/to/it_web_service-cluster/ usuario@servidor:/opt/it-web-service/
+  /path/to/IT-Platform/ usuario@servidor:/opt/it-web-service/
 ```
 
 ### 3. Configurar variables de entorno
@@ -723,7 +734,7 @@ VITE_API_URL=https://tu-dominio.com/index.php
 #### Archivo `.env` del backend
 
 ```bash
-cd it_web_service-Backend_R
+cd services/ITwebService_Back
 cp .env.example .env
 # Configurar credenciales de SQL Server, SEC_KEY, ENCRYPT_KEY, etc.
 ```
@@ -731,7 +742,7 @@ cp .env.example .env
 #### Archivo `.env` de notificaciones
 
 ```bash
-cd microservices/Notifications
+cd services/microservices/notifications_service
 cp .env.example .env
 # Configurar API_KEY (misma que NOTIFICATIONS_API_KEY del cluster)
 # Configurar CORS_ORIGINS con el dominio de producción
@@ -745,8 +756,8 @@ openssl rand -hex 32
 
 # Copiar el resultado en:
 # - .env del cluster → NOTIFICATIONS_API_KEY
-# - microservices/Notifications/.env → API_KEY
-# - it_web_service-Backend_R/.env → NOTIFICATIONS_API_KEY (si aplica)
+# - services/microservices/notifications_service/.env → API_KEY
+# - services/ITwebService_Back/.env → NOTIFICATIONS_API_KEY (si aplica)
 ```
 
 ### 5. Desplegar todos los servicios
@@ -916,9 +927,9 @@ cd /opt/it-web-service
 
 # Actualizar código fuente
 git pull
-cd it_web_service-Front && git pull && cd ..
-cd it_web_service-Backend_R && git pull && cd ..
-cd microservices/Notifications && git pull && cd ../..
+for repo in services/ITwebService_Front services/ITwebService_Back services/microservices/*/; do
+  [ -d "$repo/.git" ] && git -C "$repo" pull
+done
 
 # Rebuild y deploy
 docker compose --profile prod --profile microservices up -d --build
@@ -951,7 +962,7 @@ docker compose stop notifications
 docker compose rm -f notifications
 
 # Volver a la versión anterior del código
-cd microservices/Notifications && git checkout <commit-anterior> && cd ../..
+git -C services/microservices/notifications_service checkout <commit-anterior>
 
 # Rebuild
 docker compose --profile notifications up -d --build notifications

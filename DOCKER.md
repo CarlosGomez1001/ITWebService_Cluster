@@ -9,6 +9,7 @@ Documentación completa para el manejo de contenedores del IT Web Service Cluste
 - [Estructura de Archivos](#estructura-de-archivos)
 - [Configuración Inicial](#configuración-inicial)
 - [Comandos de Desarrollo](#comandos-de-desarrollo)
+- [Qué correr después de un cambio de código](#qué-correr-después-de-un-cambio-de-código)
 - [Comandos de Producción](#comandos-de-producción)
 - [Gestión de Servicios](#gestión-de-servicios)
 - [Microservicio de Notificaciones](#microservicio-de-notificaciones)
@@ -272,6 +273,118 @@ Si aparece el error `network ... not found`:
 docker compose down && docker network prune -f \
   && docker compose --profile dev --profile notifications up -d --build
 ```
+
+---
+
+## Qué correr después de un cambio de código
+
+Qué comando necesitas depende de si el servicio monta su código como volumen
+(*bind mount*) o lo copia dentro de la imagen al hacer build:
+
+| Servicio | Código en el contenedor | ¿Rebuild al cambiar código? |
+|----------|------------------------|-----------------------------|
+| `backend` | Bind mount (`services/ITwebService_Back`) | No |
+| `formatsandmail` | Bind mount | No |
+| `authservice` | Bind mount | No |
+| `frontend-dev` | Bind mount + Vite hot reload | No |
+| `frontend-prod` | Build estático dentro de la imagen | **Sí** |
+| `notifications` | Copiado en la imagen | **Sí** |
+| `ai-service` | Copiado en la imagen (TypeScript compilado) | **Sí** |
+
+> Todos los comandos se corren desde la raíz de `IT-Platform/`.
+
+### Frontend (`services/ITwebService_Front`)
+
+**Desarrollo** — el código está montado y Vite recarga solo; normalmente no hay
+que hacer nada. Si no se refleja el cambio:
+
+```bash
+docker compose --profile dev restart frontend-dev
+```
+
+Si cambiaste `package.json` / `package-lock.json` (el `node_modules` vive en un
+volumen nombrado, así que no se actualiza solo):
+
+```bash
+docker compose --profile dev up -d --build frontend-dev
+# Si sigue sin tomar la dependencia nueva, instalar dentro del contenedor:
+docker compose exec frontend-dev npm install
+```
+
+Si cambiaste `.env` / `VITE_API_URL` en desarrollo:
+
+```bash
+docker compose --profile dev up -d --force-recreate frontend-dev
+```
+
+**Producción** — el bundle se genera en build time, siempre hay que reconstruir
+(también al cambiar `VITE_API_URL`):
+
+```bash
+docker compose --profile prod up -d --build frontend-prod
+```
+
+### Backend (`services/ITwebService_Back`)
+
+Cambios en PHP (controllers, models, `index.php`): se reflejan al instante por
+el bind mount, no hace falta ningún comando.
+
+Cambios en `.env` (se lee con `env_file`, solo al crear el contenedor):
+
+```bash
+docker compose up -d --force-recreate backend
+```
+
+Cambios en `composer.json` / `composer.lock` (`vendor` vive en el volumen
+`it-backend-vendor`, que no se repuebla desde la imagen una vez creado):
+
+```bash
+docker compose up -d --build backend
+docker compose exec backend composer install
+```
+
+Cambios en el `Dockerfile` o en la configuración de Apache/PHP:
+
+```bash
+docker compose build backend && docker compose up -d backend
+```
+
+### Microservicios
+
+| Microservicio | Cambio de código | Cambio de dependencias / Dockerfile |
+|---------------|------------------|-------------------------------------|
+| **FormatsAndMail** (PHP) | Sin comando (bind mount) | `docker compose --profile formatsandmail up -d --build formatsandmail` y luego `docker compose exec formatsandmail composer install` |
+| **AuthService** (PHP) | Sin comando (bind mount) | `docker compose --profile authservice up -d --build authservice` y luego `docker compose exec authservice composer install` |
+| **Notifications** (Node) | `docker compose --profile notifications up -d --build notifications` | Mismo comando |
+| **AI Service** (Node + TS) | `docker compose --profile ai-service up -d --build ai-service` | Mismo comando |
+
+Cambios en el `.env` de cualquier microservicio (se lee al crear el contenedor):
+
+```bash
+docker compose --profile <profile> up -d --force-recreate <servicio>
+# ej: docker compose --profile authservice up -d --force-recreate authservice
+```
+
+Después de reconstruir, verifica que el servicio quedó sano:
+
+```bash
+docker compose ps
+docker compose logs -f --tail=50 <servicio>
+```
+
+### Cambios en varios servicios a la vez
+
+```bash
+# Desarrollo: reconstruye todo lo que tenga imagen propia
+docker compose --profile dev --profile microservices up -d --build
+
+# Producción
+docker compose --profile prod --profile microservices up -d --build
+```
+
+> `up -d --build` solo recrea los contenedores cuya imagen cambió; los demás
+> quedan intactos. Si el cambio no se refleja, forzar sin cache:
+> `docker compose build --no-cache <servicio> && docker compose up -d <servicio>`.
 
 ---
 

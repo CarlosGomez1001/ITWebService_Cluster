@@ -9,3 +9,4 @@
 # Ignorar servicios
 services
 migrations
+docs

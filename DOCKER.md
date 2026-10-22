@@ -171,8 +171,11 @@ MONGO_NOTIFICATIONS_PORT=27017
 MS_FORMATSANDMAIL_PORT=3001
 
 # ─── Notifications Config ────────────────────────────────────────
-NOTIFICATIONS_API_KEY=changeme-generate-a-secure-key
+# Dos secretos DISTINTOS (openssl rand -hex 32 cada uno; el servicio no arranca con "changeme..." ni < 32 chars):
+NOTIFICATIONS_API_KEY=<secreto-1>          # backend -> microservicio. Igual en el .env del backend
+NOTIFICATIONS_JWT_SECRET=<secreto-2>       # el BACKEND firma con él el token del navegador. Igual en el .env del backend
 NOTIFICATIONS_CORS_ORIGINS=http://localhost:5173,http://localhost:80
+# VITE_NOTIFICATIONS_URL=                  # build del front; vacío = mismo origen (producción)
 
 # ─── Docker ──────────────────────────────────────────────────────
 COMPOSE_PROJECT_NAME=it-web-service
@@ -520,12 +523,16 @@ El servicio usa un build multi-stage optimizado para producción:
 | `PORT` | Puerto interno del servicio | `3002` |
 | `NODE_ENV` | Ambiente de ejecución | `development` |
 | `MONGO_URI` | URI de conexión a MongoDB | `mongodb://mongo-notifications:27017/notifications` |
-| `API_KEY` | Clave para autenticación backend→microservicio | *(requerido)* |
-| `CORS_ORIGINS` | Orígenes permitidos (separados por coma) | `http://localhost:5173,http://localhost:80` |
+| `API_KEY` | Clave backend→microservicio (≥ 32 chars, no `changeme…`) | *(requerido, sin default)* |
+| `NOTIFICATIONS_JWT_SECRET` | Secreto con el que el backend firma el token de notificaciones (≥ 32 chars, distinto de `API_KEY` y de `SEC_KEY`) | *(requerido, sin default)* |
+| `CORS_ORIGINS` | Orígenes permitidos (separados por coma). En producción: `https://crm.itwebservices.net` | `http://localhost:5173,http://localhost:80` (solo fuera de producción) |
+
+> Con `NODE_ENV=production` también son obligatorias `MONGO_URI` y `CORS_ORIGINS`; el servicio aborta el arranque si falta alguna.
+> `NOTIFICATIONS_JWT_SECRET` es requerido por `docker-compose.yml` (`:?`), igual que `NOTIFICATIONS_API_KEY`.
 
 ### Endpoints
 
-**Protegidos por API Key** (solo accesibles desde el backend PHP):
+**Protegidos por API Key** (solo accesibles desde el backend PHP por la red Docker; el proxy público los bloquea con 404):
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
@@ -533,21 +540,23 @@ El servicio usa un build multi-stage optimizado para producción:
 | POST | `/api/notifications/send-bulk` | Enviar a múltiples usuarios |
 | POST | `/api/notifications/broadcast` | Broadcast a todos/tenant |
 
-**Públicos** (accesibles desde el frontend):
+**Del usuario** (frontend; `Authorization: Bearer <token de notificaciones>` que emite el backend en `GET /notificaciones/getToken`; tenant y usuario salen del token):
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| GET | `/api/notifications/:tenant/:userId` | Obtener notificaciones (paginado) |
-| GET | `/api/notifications/:tenant/:userId/unread-count` | Contador de no leídas |
-| PATCH | `/api/notifications/:id/read` | Marcar como leída |
-| PATCH | `/api/notifications/:tenant/:userId/read-all` | Marcar todas como leídas |
-| GET | `/notifications/health` | Health check del servicio |
+| GET | `/api/notifications` | Notificaciones propias (paginado) |
+| GET | `/api/notifications/unread-count` | Contador de no leídas |
+| PATCH | `/api/notifications/:id/read` | Marcar una propia como leída |
+| PATCH | `/api/notifications/read-all` | Marcar todas las propias como leídas |
+| GET | `/notifications/health` | Health check (sin auth) |
+
+Envío desde el navegador: `POST /notificaciones/enviar` y `POST /notificaciones/broadcast` **del backend** (valida la sesión). Ver `renew-plan-docs/notficaciones/`.
 
 ### Eventos WebSocket (Socket.io)
 
 | Evento | Dirección | Descripción |
 |--------|-----------|-------------|
-| `register` | Cliente → Servidor | Registrar usuario en sala `user:{tenant}:{userId}` |
+| `token-expired` | Servidor → Cliente | El token venció; el servidor cierra el socket y el cliente reconecta con uno nuevo (el handshake exige `auth.token`) |
 | `new-notification` | Servidor → Cliente | Nueva notificación recibida |
 | `unread-count` | Servidor → Cliente | Actualización del contador |
 | `broadcast-notification` | Servidor → Todos | Alerta a nivel sistema/tenant |
@@ -679,7 +688,7 @@ Dentro de la red Docker, los servicios se comunican por nombre de contenedor:
 |-------|-------|-----|---------------|
 | frontend-dev | backend | http://backend:80 | JWT (Authorization header) |
 | backend | notifications | http://notifications:3002 | API Key (x-api-key header) |
-| frontend-dev/prod | notifications | http://localhost:3002 | WebSocket (register event) |
+| frontend-dev/prod | notifications | http://localhost:3002 | WebSocket (handshake con token de notificaciones) |
 
 `../reverse-proxy` no está en `it-web-service-network` — corre con `network_mode: host` y llega a `backend`/`frontend-prod`/`notifications` vía `127.0.0.1:<puerto>`, no por nombre de contenedor.
 | notifications | mongo-notifications | mongodb://mongo-notifications:27017 | Sin auth (red interna) |

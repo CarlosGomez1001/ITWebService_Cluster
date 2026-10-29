@@ -18,7 +18,7 @@ services:
     ports:
       # Loopback-only: the standalone reverse-proxy (../reverse-proxy) is the
       # only intended consumer, reaching it via 127.0.0.1:${BACKEND_PORT}.
-      - "127.0.0.1:${BACKEND_PORT:-3000}:80"
+      - "127.0.0.1:${BACKEND_PORT:-4006}:80"
     env_file:
       - ./services/ITwebService_Back/.env
     environment:
@@ -46,16 +46,16 @@ services:
       dockerfile: Dockerfile
     container_name: ${STACK_NAME:-it}-frontend-dev-lnx
     ports:
-      - "${FRONTEND_DEV_PORT:-5173}:5173"
+      - "${FRONTEND_DEV_PORT:-5174}:5173"
     volumes:
       - ./services/ITwebService_Front:/app
       - frontend_node_modules:/app/node_modules
     environment:
       - NODE_ENV=development
       # La consume el navegador, no el contenedor: debe ser una URL alcanzable desde el host.
-      - VITE_API_URL=http://localhost:${BACKEND_PORT:-3000}/index.php
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-4006}/index.php
       # Microservicio de notificaciones publicado en loopback; también lo consume el navegador.
-      - VITE_NOTIFICATIONS_URL=http://localhost:${MS_NOTIFICATIONS_PORT:-3002}
+      - VITE_NOTIFICATIONS_URL=http://localhost:${MS_NOTIFICATIONS_PORT:-4002}
     command: npm run dev -- --host --force
     networks:
       - it-network
@@ -81,7 +81,7 @@ services:
       # 80/443 are owned by the standalone reverse-proxy (../reverse-proxy).
       # This publishes only to loopback so the proxy can reach it via
       # 127.0.0.1:${FRONTEND_PROD_PORT} without exposing it directly.
-      - "127.0.0.1:${FRONTEND_PROD_PORT:-8081}:80"
+      - "127.0.0.1:${FRONTEND_PROD_PORT:-9081}:80"
     environment:
       - NODE_ENV=production
     networks:
@@ -105,16 +105,16 @@ services:
       dockerfile: Dockerfile
     container_name: ${STACK_NAME:-it}-ms-notifications
     ports:
-      - "127.0.0.1:${MS_NOTIFICATIONS_PORT:-3002}:3002"
+      - "127.0.0.1:${MS_NOTIFICATIONS_PORT:-4002}:3002"
     environment:
-      - PORT=3002
+      - PORT=4002
       - NODE_ENV=${NODE_ENV:-development}
       - MONGO_URI=mongodb://${MONGO_NOTIFICATIONS_USER:?Define MONGO_NOTIFICATIONS_USER en .env}:${MONGO_NOTIFICATIONS_PASSWORD:?Define MONGO_NOTIFICATIONS_PASSWORD en .env}@mongo-notifications:27017/notifications?authSource=admin
       - API_KEY=${NOTIFICATIONS_API_KEY:?Define NOTIFICATIONS_API_KEY en .env (openssl rand -hex 32)}
       # Secreto con el que el BACKEND firma el token de notificaciones del navegador. Debe ser el mismo
       # NOTIFICATIONS_JWT_SECRET del .env del backend, distinto de SEC_KEY y de NOTIFICATIONS_API_KEY.
       - NOTIFICATIONS_JWT_SECRET=${NOTIFICATIONS_JWT_SECRET:?Define NOTIFICATIONS_JWT_SECRET en .env (openssl rand -hex 32)}
-      - CORS_ORIGINS=${NOTIFICATIONS_CORS_ORIGINS:-http://localhost:5173,http://localhost:80}
+      - CORS_ORIGINS=${NOTIFICATIONS_CORS_ORIGINS:-http://localhost:5174,http://localhost:80}
     networks:
       - it-network
     depends_on:
@@ -122,7 +122,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/notifications/health" ]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4002/notifications/health" ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -137,7 +137,7 @@ services:
     container_name: ${STACK_NAME:-it}-mongo-notifications
     ports:
       # Loopback-only: accesible desde el host (mongosh/Compass) pero no desde la red.
-      - "127.0.0.1:${MONGO_NOTIFICATIONS_PORT:-27017}:27017"
+      - "127.0.0.1:${MONGO_NOTIFICATIONS_PORT:-27018}:27017"
     environment:
       # Activa --auth. El usuario solo se crea si el volumen está vacío;
       # con un volumen existente hay que crearlo a mano (ver DOCKER.md).
@@ -165,7 +165,7 @@ services:
       dockerfile: Dockerfile
     container_name: ${STACK_NAME:-it}-ms-formatsandmail
     ports:
-      - "127.0.0.1:${MS_FORMATSANDMAIL_PORT:-3001}:80"
+      - "127.0.0.1:${MS_FORMATSANDMAIL_PORT:-4001}:80"
     env_file:
       - ./services/microservices/FormatsAndMails/.env
     environment:
@@ -194,7 +194,7 @@ services:
       dockerfile: Dockerfile
     container_name: ${STACK_NAME:-it}-ms-authservice
     ports:
-      - "127.0.0.1:${MS_AUTH_PORT:-3003}:80"
+      - "127.0.0.1:${MS_AUTH_PORT:-4003}:80"
     env_file:
       - ./services/microservices/AuthService/.env
     environment:
@@ -224,11 +224,11 @@ services:
       # Loopback-only, igual que el resto de microservicios: solo el backend
       # PHP (dentro de la red Docker) o un curl local deben alcanzarlo. Este
       # servicio nunca lleva CORS habilitado ni debe ser llamado desde React.
-      - "127.0.0.1:${MS_AI_PORT:-3005}:3005"
+      - "127.0.0.1:${MS_AI_PORT:-4005}:3005"
     env_file:
       - ./services/microservices/ai-insights-service/.env
     environment:
-      - PORT=3005
+      - PORT=4005
       - NODE_ENV=${NODE_ENV:-development}
     networks:
       - it-network

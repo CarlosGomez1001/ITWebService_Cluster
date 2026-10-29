@@ -6,7 +6,7 @@
 
 # Ignorar archivos de log
 *.log   
-›››
+
 # Ignorar servicios
 services
 migrations

@@ -1,11 +1,12 @@
 
 # Variables de entorno
 .env
+.env.test
 .DS_Store
 
 # Ignorar archivos de log
 *.log   
-
+›››
 # Ignorar servicios
 services
 migrations

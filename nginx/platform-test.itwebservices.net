@@ -1,0 +1,93 @@
+# Sitio nginx del ENTORNO DE PRUEBAS (host: reverse-proxy del servidor)
+# Puertos loopback del stack it-test (ver .env de la carpeta de pruebas):
+#   backend 4000 | frontend-prod 9081 | notifications 4002
+
+# Necesario para el upgrade del WebSocket de Socket.io (contexto http).
+# Nombre propio para no chocar con otro map que ya exista en el servidor.
+map $http_upgrade $it_test_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    server_name crm-pruebas.itwebservices.net;
+
+    # Pruebas: que no se indexe
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    # ── Notifications: rutas servicio-a-servicio (solo las usa el backend por la red Docker) ──
+    location ~ ^/api/notifications/(send|send-bulk|broadcast)/?$ {
+        return 404;
+    }
+
+    # ── Notifications: REST del usuario (el microservicio valida el JWT de notificaciones) ──
+    location /api/notifications {
+        proxy_pass http://127.0.0.1:4002;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+    }
+
+    # ── Notifications: WebSocket (Socket.io, path personalizado) ──
+    location /notifications/socket.io {
+        proxy_pass http://127.0.0.1:4002;
+        proxy_http_version 1.1;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $it_test_connection_upgrade;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+        proxy_cache off;
+    }
+
+    # ── Backend PHP ──
+    location /index.php {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-Refresh-Token $http_x_refresh_token;
+    }
+
+    # ── Frontend (build estático) ──
+    location / {
+        proxy_pass http://127.0.0.1:9081;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/crm-pruebas.itwebservices.net/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/crm-pruebas.itwebservices.net/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+
+server {
+    if ($host = crm-pruebas.itwebservices.net) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+    listen 80;
+    server_name crm-pruebas.itwebservices.net;
+    return 404; # managed by Certbot
+}
